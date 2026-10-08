@@ -1,0 +1,14 @@
+# Build context for this service when built directly from ai-service/.
+# The repository-root build (docker-compose) uses the root .dockerignore.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.git/
+.gitignore
+tests/
+README.md

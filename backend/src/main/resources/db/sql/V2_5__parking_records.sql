@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS parking_records (
+  record_id BIGINT PRIMARY KEY,
+  vehicle_id BIGINT NOT NULL,
+  space_id BIGINT NOT NULL,
+  entry_time DATETIME NOT NULL,
+  exit_time DATETIME NULL,
+  duration INT NULL,
+  fee DECIMAL(10,2) NULL,
+  status VARCHAR(20) NOT NULL,
+  active_flag TINYINT AS (IF(status = 'PARKING', 1, NULL)) VIRTUAL,
+  create_time DATETIME NOT NULL,
+  update_time DATETIME NOT NULL,
+  KEY idx_parking_records_vehicle_id (vehicle_id),
+  KEY idx_parking_records_space_id (space_id),
+  KEY idx_parking_records_entry_time (entry_time),
+  KEY idx_parking_records_exit_time (exit_time),
+  KEY idx_parking_records_status (status),
+  KEY idx_parking_records_status_entry_time (status, entry_time),
+  UNIQUE KEY uk_parking_records_vehicle_active (vehicle_id, active_flag),
+  CONSTRAINT fk_parking_records_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES vehicles (vehicle_id),
+  CONSTRAINT fk_parking_records_space_id FOREIGN KEY (space_id) REFERENCES parking_spaces (space_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

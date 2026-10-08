@@ -1,0 +1,121 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: smart-parking-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-smart_parking}
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    volumes:
+      - smart-parking-mysql-data:/var/lib/mysql
+      - ./backend/src/main/resources/db/sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: smart-parking-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - smart-parking-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: ai-service/Dockerfile
+    container_name: smart-parking-ai-service
+    restart: unless-stopped
+    environment:
+      AI_SERVICE_PORT: 8000
+      OPENAI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_API_KEY: ${AI_API_KEY:-}
+      OPENAI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+      RAG_TOP_K: ${AI_RAG_TOP_K:-4}
+      RAG_EMBEDDING_ENABLED: ${AI_RAG_EMBEDDING_ENABLED:-false}
+      TZ: Asia/Shanghai
+    ports:
+      # 仅绑定宿主机回环，避免直接绕过 Nginx 的 JWT 鉴权网关；需要跨机调试时改用 SSH 隧道
+      - "127.0.0.1:${AI_SERVICE_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: smart-parking-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-smart_parking}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DATABASE: 0
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set, see .env.example}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-7200}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800}
+      JWT_ISSUER: ${JWT_ISSUER:-smart-parking}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      RESERVATION_EXPIRATION_GRACE_MINUTES: ${RESERVATION_EXPIRATION_GRACE_MINUTES:-30}
+      BAIDU_OCR_API_KEY: ${BAIDU_OCR_API_KEY:-}
+      BAIDU_OCR_SECRET_KEY: ${BAIDU_OCR_SECRET_KEY:-}
+      BAIDU_OCR_CONFIDENCE_THRESHOLD: ${BAIDU_OCR_CONFIDENCE_THRESHOLD:-0.8000}
+      AI_PROVIDER: ${AI_PROVIDER:-rule-based}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-20}
+      AI_MAX_HISTORY_MESSAGES: ${AI_MAX_HISTORY_MESSAGES:-6}
+      AI_TEMPERATURE: ${AI_TEMPERATURE:-0.3}
+      AI_PYTHON_BASE_URL: ${AI_PYTHON_BASE_URL:-http://ai-service:8000}
+      AI_PYTHON_TIMEOUT_SECONDS: ${AI_PYTHON_TIMEOUT_SECONDS:-30}
+      TZ: Asia/Shanghai
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+
+  frontend:
+    profiles:
+      - frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: smart-parking-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      ai-service:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+
+volumes:
+  smart-parking-mysql-data:
+  smart-parking-redis-data:

@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS reservations (
+  reservation_id BIGINT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  vehicle_id BIGINT NOT NULL,
+  space_id BIGINT NOT NULL,
+  reserve_time DATETIME NOT NULL,
+  arrive_time DATETIME NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  active_flag TINYINT AS (IF(status = 'ACTIVE', 1, NULL)) VIRTUAL,
+  create_time DATETIME NOT NULL,
+  update_time DATETIME NOT NULL,
+  KEY idx_reservations_user_id (user_id),
+  KEY idx_reservations_vehicle_id (vehicle_id),
+  KEY idx_reservations_space_id (space_id),
+  KEY idx_reservations_status (status),
+  KEY idx_reservations_arrive_time (arrive_time),
+  KEY idx_reservations_status_arrive_time (status, arrive_time),
+  UNIQUE KEY uk_reservations_user_active (user_id, active_flag),
+  CONSTRAINT fk_reservations_user_id FOREIGN KEY (user_id) REFERENCES users (user_id),
+  CONSTRAINT fk_reservations_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES vehicles (vehicle_id),
+  CONSTRAINT fk_reservations_space_id FOREIGN KEY (space_id) REFERENCES parking_spaces (space_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

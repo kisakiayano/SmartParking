@@ -1,0 +1,5 @@
+fastapi>=0.115,<1.0
+# 容器内以单进程方式直接运行 uvicorn，未使用 websockets / --reload，
+# 因此不安装 [standard] 附加包（uvloop、httptools、websockets、watchfiles 等）。
+uvicorn>=0.30
+httpx>=0.27
